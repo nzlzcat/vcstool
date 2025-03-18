@@ -2,7 +2,8 @@ import argparse
 import os
 from shutil import which
 import sys
-import urllib.request as request
+import urllib.error as url_error
+import urllib.request as url_request
 
 from vcstool import __version__ as vcstool_version
 from vcstool.clients import vcstool_clients
@@ -24,11 +25,13 @@ class ImportCommand(Command):
     help = 'Import the list of repositories'
 
     def __init__(
-        self, args, url, version=None, recursive=False, shallow=False
+        self, args, url, version=None, subdir=None, recursive=False,
+        shallow=False,
     ):
         super(ImportCommand, self).__init__(args)
         self.url = url
         self.version = version
+        self.subdir = subdir
         self.force = args.force
         self.retry = args.retry
         self.skip_existing = args.skip_existing
@@ -69,7 +72,7 @@ def file_or_url_type(value):
         return argparse.FileType('r')(value)
     # use another user agent to avoid getting a 403 (forbidden) error,
     # since some websites blacklist or block unrecognized user agents
-    return request.Request(
+    return url_request.Request(
         value, headers={'User-Agent': 'vcstool/' + vcstool_version})
 
 
@@ -107,6 +110,8 @@ def get_repos_in_vcstool_format(repositories):
             repo['url'] = attributes['url']
             if 'version' in attributes:
                 repo['version'] = attributes['version']
+            if 'subdir' in attributes:
+                repo['subdir'] = attributes['subdir']
         except KeyError as e:
             print(
                 ansi('yellowf') + (
@@ -138,6 +143,8 @@ def get_repos_in_rosinstall_format(root):
             repo['url'] = attributes['uri']
             if 'version' in attributes:
                 repo['version'] = attributes['version']
+            if 'subdir' in attributes:
+                repo['subdir'] = attributes['subdir']
         except KeyError as e:
             print(
                 ansi('yellowf') + (
@@ -171,6 +178,7 @@ def generate_jobs(repos, args):
         command = ImportCommand(
             args, repo['url'],
             str(repo['version']) if 'version' in repo else None,
+            str(repo['subdir']) if 'subdir' in repo else None,
             recursive=args.recursive, shallow=args.shallow)
         job = {'client': client, 'command': command}
         jobs.append(job)
@@ -201,10 +209,10 @@ def main(args=None, stdout=None, stderr=None):
     args = parser.parse_args(args)
     try:
         input_ = args.input
-        if isinstance(input_, request.Request):
-            input_ = request.urlopen(input_)
+        if isinstance(input_, url_request.Request):
+            input_ = url_request.urlopen(input_)
         repos = get_repositories(input_)
-    except (RuntimeError, request.URLError) as e:
+    except (RuntimeError, url_error.URLError) as e:
         print(ansi('redf') + str(e) + ansi('reset'), file=sys.stderr)
         return 1
     jobs = generate_jobs(repos, args)

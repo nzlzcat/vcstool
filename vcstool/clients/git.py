@@ -385,7 +385,16 @@ class GitClient(VcsClientBase):
                 version_type = result_version_type['version_type']
 
             if not command.shallow or version_type in (None, 'branch'):
-                cmd_clone = [GitClient._executable, 'clone', command.url, '.']
+                if command.subdir:
+                    cmd_clone = [
+                        GitClient._executable, 'clone',
+                        '--no-checkout', '--depth=1',
+                        command.url, '.'
+                    ]
+                else:
+                    cmd_clone = [
+                        GitClient._executable, 'clone', command.url, '.'
+                    ]
                 if version_type == 'branch':
                     cmd_clone += ['-b', version_name]
                     checkout_version = None
@@ -400,6 +409,42 @@ class GitClient(VcsClientBase):
                         "Could not clone repository '%s': %s" % \
                         (command.url, result_clone['output'])
                     return result_clone
+
+                if command.subdir:
+                    # 1. init sparse-checkout
+                    cmd_sparse_checkout_init = [
+                        GitClient._executable, 'sparse-checkout',
+                        'init', '--cone'
+                    ]
+                    result_init = self._run_command(cmd_sparse_checkout_init)
+                    if result_init['returncode']:
+                        return result_init
+
+                    # 2. set sparse-checkout
+                    cmd_sparse_checkout_set = [
+                        GitClient._executable, 'sparse-checkout',
+                        'set', command.subdir
+                    ]
+                    result_set = self._run_command(cmd_sparse_checkout_set)
+                    if result_set['returncode']:
+                        return result_set
+
+                    # 3. checkout
+                    cmd_checkout_head = [
+                        GitClient._executable, 'checkout', 'HEAD'
+                    ]
+                    result_checkout = self._run_command(cmd_checkout_head)
+                    if result_checkout['returncode']:
+                        return result_checkout
+
+                    # Combine all commands and outputs
+                    result_clone['output'] = '\n'.join([
+                        result_clone['output'],
+                        result_init['output'],
+                        result_set['output'],
+                        result_checkout['output']
+                    ])
+
                 cmd = result_clone['cmd']
                 output = result_clone['output']
             else:
