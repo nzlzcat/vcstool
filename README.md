@@ -14,7 +14,7 @@ pip3 install git+https://github.com/nzlzcat/vcstool
 
     ```yaml
     repositories:
-    my_subdir:
+      my_subdir:
         type: git
         url: <git@github.com>:my_org/my_repo.git
         version: my_branch
