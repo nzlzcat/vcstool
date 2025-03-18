@@ -3,3 +3,4 @@ build
 deb_dist
 dist
 vcstool.egg-info
+*venv/
